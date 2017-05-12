@@ -1,0 +1,10 @@
+*.iml
+.gradle
+/local.properties
+/gradlew.bat
+/gradlew
+/.idea
+.DS_Store
+/build
+/captures
+*.apk

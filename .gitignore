@@ -8,3 +8,5 @@
 /build
 /captures
 *.apk
+app/libs/
+app/src/main/res/drawable/

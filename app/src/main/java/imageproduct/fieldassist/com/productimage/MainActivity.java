@@ -4,6 +4,7 @@ import android.content.Context;
 import android.content.Intent;
 import android.graphics.Bitmap;
 import android.graphics.BitmapFactory;
+import android.graphics.Matrix;
 import android.net.Uri;
 import android.os.AsyncTask;
 import android.os.Build;
@@ -13,6 +14,8 @@ import android.support.annotation.RequiresApi;
 import android.support.v7.app.AppCompatActivity;
 import android.util.Log;
 import android.view.View;
+import android.widget.Button;
+import android.widget.EditText;
 import android.widget.ImageView;
 import android.widget.TextView;
 
@@ -31,16 +34,15 @@ import com.google.api.services.vision.v1.model.EntityAnnotation;
 import com.google.api.services.vision.v1.model.Feature;
 import com.google.api.services.vision.v1.model.Image;
 
-import org.w3c.dom.Text;
-
 import java.io.ByteArrayOutputStream;
 import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.List;
-import java.util.Locale;
 
-import static android.R.attr.value;
+import me.xdrop.fuzzywuzzy.FuzzySearch;
+import me.xdrop.fuzzywuzzy.model.ExtractedResult;
 
 public class MainActivity extends AppCompatActivity {
 
@@ -48,6 +50,11 @@ public class MainActivity extends AppCompatActivity {
     private String API_TAG = "TEXT_API";
     private ImageView mIvPickedImage;
     private TextView mTvDetectedText;
+    private TextView mTvObjectTitle;
+    private EditText mEtObjectName;
+    private TextView mTvObjectCountTitle;
+    private TextView mTvObjectCount;
+    private Button mBAnalyze;
     private Uri uri = null;
     private int CHOOSE_IMAGE_REQUEST = 1;
 
@@ -62,6 +69,11 @@ public class MainActivity extends AppCompatActivity {
 
         mIvPickedImage = (ImageView) findViewById(R.id.picked_image);
         mTvDetectedText = (TextView) findViewById(R.id.detected_text);
+        mTvObjectTitle = (TextView) findViewById(R.id.object_title);
+        mEtObjectName = (EditText) findViewById(R.id.object_name);
+        mBAnalyze = (Button) findViewById(R.id.analyze_image);
+        mTvObjectCountTitle = (TextView) findViewById(R.id.object_count_title);
+        mTvObjectCount = (TextView) findViewById(R.id.object_count);
     }
 
     public void ChooseImage(View view)
@@ -81,9 +93,19 @@ public class MainActivity extends AppCompatActivity {
             uri = data.getData();
 
             try {
-                Bitmap bitmap = MediaStore.Images.Media.getBitmap(getContentResolver(), uri);
+                Bitmap bitmap = decodeBitmapUri(this, uri);
+
                 mIvPickedImage.setVisibility(View.VISIBLE);
                 mIvPickedImage.setImageBitmap(bitmap);
+
+                mTvDetectedText.setVisibility(View.GONE);
+                mTvObjectTitle.setVisibility(View.VISIBLE);
+                mEtObjectName.setVisibility(View.VISIBLE);
+                mEtObjectName.setText("");
+                mTvObjectCountTitle.setVisibility(View.GONE);
+                mTvObjectCount.setVisibility(View.GONE);
+                mBAnalyze.setVisibility(View.VISIBLE);
+
             } catch (FileNotFoundException e) {
                 e.printStackTrace();
             } catch (IOException e) {
@@ -106,8 +128,11 @@ public class MainActivity extends AppCompatActivity {
 
     public void AnalyzeImage(View view)
     {
+        mTvObjectCountTitle.setVisibility(View.GONE);
+        mTvObjectCount.setVisibility(View.GONE);
         if(uri!=null) {
             try {
+
                 Bitmap bitmap = decodeBitmapUri(this, uri);
 
                 callCloudVision(bitmap);
@@ -122,14 +147,14 @@ public class MainActivity extends AppCompatActivity {
     }
 
     private void callCloudVision(final Bitmap bitmap) throws IOException {
-        // Switch text to loading
+
+        mTvDetectedText.setVisibility(View.VISIBLE);
         mTvDetectedText.setText(R.string.loading);
 
-        // Do the real work in an async task, because we need to use the network anyway
-        new AsyncTask<Object, Void, String>() {
+        new AsyncTask<Object, Void, Collection<String>>() {
             @RequiresApi(api = Build.VERSION_CODES.KITKAT)
             @Override
-            protected String doInBackground(Object... params) {
+            protected Collection<String> doInBackground(Object... params) {
                 try {
                     HttpTransport httpTransport = AndroidHttp.newCompatibleTransport();
                     JsonFactory jsonFactory = GsonFactory.getDefaultInstance();
@@ -203,43 +228,64 @@ public class MainActivity extends AppCompatActivity {
                     Log.d(TAG, "failed to make API request because of other IOException " +
                             e.getMessage());
                 }
-                return "Cloud Vision API request failed. Check logs for details.";
+                //return "Cloud Vision API request failed. Check logs for details.";
+                return null;
             }
 
-            protected void onPostExecute(String result) {
-                mTvDetectedText.setText(result);
-                //Log.i(API_TAG, "Detected Text: " + result);
+            protected void onPostExecute(Collection<String> result) {
+
+                if(result == null)
+                {
+                    mTvDetectedText.setText("Failed, Try AGain");
+                }
+                else {
+                    int count = matchCount(mEtObjectName.getText().toString().toLowerCase(), result);
+
+                    mTvDetectedText.setText("");
+                    mTvDetectedText.setVisibility(View.GONE);
+                    mTvObjectCountTitle.setVisibility(View.VISIBLE);
+                    mTvObjectCount.setVisibility(View.VISIBLE);
+                    mTvObjectCount.setText(String.valueOf(count));
+                }
             }
         }.execute();
     }
 
-    private String convertResponseToString(BatchAnnotateImagesResponse response) {
-        String message = "";
+    private Bitmap rotateImage(Bitmap bitmap, int angle)
+    {
+        Matrix matrix = new Matrix();
+
+        matrix.postRotate(angle);
+
+        Bitmap rotatedBitmap = Bitmap.createBitmap(bitmap,0,0, bitmap.getWidth(), bitmap.getHeight(), matrix, true);
+
+        return rotatedBitmap;
+    }
+
+    private Collection<String> convertResponseToString(BatchAnnotateImagesResponse response) {
 
         List<EntityAnnotation> texts = response.getResponses().get(0)
                 .getTextAnnotations();
 
-        //Log.i(API_TAG, String.valueOf(texts.size()));
         int i=1;
         int n = texts.size();
+        Collection<String> detectedWords = new ArrayList<>();
         if (texts != null) {
             for (i=1;i<n;i++) {
                 EntityAnnotation text = texts.get(i);
-                message += text.getDescription();
-                message += (" ");
+                detectedWords.add(text.getDescription().trim().toLowerCase());
 
                 Log.i(API_TAG, text.getDescription() + " " + text.getBoundingPoly().toString());
             }
         } else {
-            message += ("nothing found\n");
-        }
 
-        return message;
+        }
+        return detectedWords;
     }
 
     private Bitmap decodeBitmapUri(Context ctx, Uri uri) throws FileNotFoundException {
-        int targetW = 600;
-        int targetH = 600;
+        int targetW = 800;
+        int targetH = 800;
         BitmapFactory.Options bmOptions = new BitmapFactory.Options();
         bmOptions.inJustDecodeBounds = true;
         BitmapFactory.decodeStream(ctx.getContentResolver().openInputStream(uri), null, bmOptions);
@@ -252,5 +298,31 @@ public class MainActivity extends AppCompatActivity {
 
         return BitmapFactory.decodeStream(ctx.getContentResolver()
                 .openInputStream(uri), null, bmOptions);
+    }
+
+    public int matchCount(String pat,Collection<String> text)
+    {
+        String[] pat_words = pat.split(" ");
+        int count = 0;
+        int itr=0;
+        if(pat_words.length>1)
+        for(int i=0;i<pat_words.length;i++)
+        {
+            List<ExtractedResult> matchedResult = FuzzySearch.extractAll(pat_words[i], text, 90);
+
+            if(matchedResult.size()>0) {
+                count += matchedResult.size();
+                itr++;
+            }
+            Log.i(TAG, String.valueOf(matchedResult.size()));
+        }
+
+        List<ExtractedResult> matchedResult = FuzzySearch.extractAll(pat, text, 80);
+        Log.i(TAG, String.valueOf(matchedResult.size()));
+        count += matchedResult.size();
+        itr++;
+
+        count = count/itr;
+        return count;
     }
 }

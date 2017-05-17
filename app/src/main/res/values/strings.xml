@@ -1,5 +1,8 @@
 <resources>
     <string name="app_name">ProductImage</string>
     <string name="choose_image">Choose Image</string>
-    <string name="loading">Detecting</string>
+    <string name="loading">Detecting...</string>
+    <string name="object_to_recognize_title">Object Name</string>
+    <string name="enter_object_name">Enter Object Name</string>
+    <string name="object_count_title">Object Count</string>
 </resources>

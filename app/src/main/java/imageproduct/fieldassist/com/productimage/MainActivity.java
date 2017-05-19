@@ -4,13 +4,10 @@ import android.content.Context;
 import android.content.Intent;
 import android.graphics.Bitmap;
 import android.graphics.BitmapFactory;
-import android.graphics.Matrix;
 import android.net.Uri;
 import android.os.AsyncTask;
 import android.os.Build;
 import android.os.Bundle;
-import android.provider.MediaStore;
-import android.support.annotation.RequiresApi;
 import android.support.v7.app.AppCompatActivity;
 import android.util.Log;
 import android.view.View;
@@ -18,6 +15,7 @@ import android.widget.Button;
 import android.widget.EditText;
 import android.widget.ImageView;
 import android.widget.TextView;
+import android.widget.Toast;
 
 import com.google.api.client.extensions.android.http.AndroidHttp;
 import com.google.api.client.http.HttpTransport;
@@ -57,6 +55,7 @@ public class MainActivity extends AppCompatActivity {
     private Button mBAnalyze;
     private Uri uri = null;
     private int CHOOSE_IMAGE_REQUEST = 1;
+    private int STORAGE_PERMISSION_CODE = 100;
 
     private static final String CLOUD_VISION_API_KEY = "AIzaSyAU34RtXNDz7WaX6fFhSmzxsmCLsIB_Z8g";
     private static final String ANDROID_CERT_HEADER = "X-Android-Cert";
@@ -66,6 +65,9 @@ public class MainActivity extends AppCompatActivity {
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_main);
+
+        boolean permissionCheck = PermissionUtils.requestPermission(this, STORAGE_PERMISSION_CODE,
+                new String[]{android.Manifest.permission.READ_EXTERNAL_STORAGE});
 
         mIvPickedImage = (ImageView) findViewById(R.id.picked_image);
         mTvDetectedText = (TextView) findViewById(R.id.detected_text);
@@ -78,10 +80,19 @@ public class MainActivity extends AppCompatActivity {
 
     public void ChooseImage(View view)
     {
-        Intent chooseImageIntent = new Intent();
-        chooseImageIntent.setType("image/*");
-        chooseImageIntent.setAction(Intent.ACTION_GET_CONTENT);
-        startActivityForResult(Intent.createChooser(chooseImageIntent, "Select Image"),CHOOSE_IMAGE_REQUEST);
+        boolean permissionCheck = PermissionUtils.requestPermission(this, STORAGE_PERMISSION_CODE,
+                new String[]{android.Manifest.permission.READ_EXTERNAL_STORAGE});
+
+        if(permissionCheck) {
+            Intent chooseImageIntent = new Intent();
+            chooseImageIntent.setType("image/*");
+            chooseImageIntent.setAction(Intent.ACTION_GET_CONTENT);
+            startActivityForResult(Intent.createChooser(chooseImageIntent, "Select Image"), CHOOSE_IMAGE_REQUEST);
+        }
+        else
+        {
+            Toast.makeText(this, "Please Enable Read Storage Permission", Toast.LENGTH_SHORT).show();
+        }
     }
 
     @Override
@@ -99,11 +110,14 @@ public class MainActivity extends AppCompatActivity {
                 mIvPickedImage.setImageBitmap(bitmap);
 
                 mTvDetectedText.setVisibility(View.GONE);
+
                 mTvObjectTitle.setVisibility(View.VISIBLE);
                 mEtObjectName.setVisibility(View.VISIBLE);
                 mEtObjectName.setText("");
+
                 mTvObjectCountTitle.setVisibility(View.GONE);
                 mTvObjectCount.setVisibility(View.GONE);
+
                 mBAnalyze.setVisibility(View.VISIBLE);
 
             } catch (FileNotFoundException e) {
@@ -132,7 +146,6 @@ public class MainActivity extends AppCompatActivity {
         mTvObjectCount.setVisibility(View.GONE);
         if(uri!=null) {
             try {
-
                 Bitmap bitmap = decodeBitmapUri(this, uri);
 
                 callCloudVision(bitmap);
@@ -152,15 +165,13 @@ public class MainActivity extends AppCompatActivity {
         mTvDetectedText.setText(R.string.loading);
 
         new AsyncTask<Object, Void, Collection<String>>() {
-            @RequiresApi(api = Build.VERSION_CODES.KITKAT)
             @Override
             protected Collection<String> doInBackground(Object... params) {
                 try {
                     HttpTransport httpTransport = AndroidHttp.newCompatibleTransport();
                     JsonFactory jsonFactory = GsonFactory.getDefaultInstance();
 
-                    VisionRequestInitializer requestInitializer =
-                            new VisionRequestInitializer(CLOUD_VISION_API_KEY) {
+                    VisionRequestInitializer requestInitializer = new VisionRequestInitializer(CLOUD_VISION_API_KEY) {
                                 /**
                                  * We override this so we can inject important identifying fields into the HTTP
                                  * headers. This enables use of a restricted cloud platform API key.
@@ -173,9 +184,9 @@ public class MainActivity extends AppCompatActivity {
                                     String packageName = getPackageName();
                                     visionRequest.getRequestHeaders().set(ANDROID_PACKAGE_HEADER, packageName);
 
-                                    String sig = PackageManagerUtils.getSignature(getPackageManager(), packageName);
+                                    String signature = PackageManagerUtils.getSignature(getPackageManager(), packageName);
 
-                                    visionRequest.getRequestHeaders().set(ANDROID_CERT_HEADER, sig);
+                                    visionRequest.getRequestHeaders().set(ANDROID_CERT_HEADER, signature);
                                 }
                             };
 
@@ -184,9 +195,11 @@ public class MainActivity extends AppCompatActivity {
 
                     Vision vision = builder.build();
 
-                    BatchAnnotateImagesRequest batchAnnotateImagesRequest =
-                            new BatchAnnotateImagesRequest();
-                    batchAnnotateImagesRequest.setRequests(new ArrayList<AnnotateImageRequest>() {{
+                    BatchAnnotateImagesRequest batchAnnotateImagesRequest = new BatchAnnotateImagesRequest();
+
+                    batchAnnotateImagesRequest.setRequests(new ArrayList<AnnotateImageRequest>()
+                    {
+                        {
                         AnnotateImageRequest annotateImageRequest = new AnnotateImageRequest();
 
                         // Add the image
@@ -194,6 +207,7 @@ public class MainActivity extends AppCompatActivity {
                         // Convert the bitmap to a JPEG
                         // Just in case it's a format that Android understands but Cloud Vision
                         ByteArrayOutputStream byteArrayOutputStream = new ByteArrayOutputStream();
+
                         bitmap.compress(Bitmap.CompressFormat.JPEG, 90, byteArrayOutputStream);
                         byte[] imageBytes = byteArrayOutputStream.toByteArray();
 
@@ -205,16 +219,18 @@ public class MainActivity extends AppCompatActivity {
                         annotateImageRequest.setFeatures(new ArrayList<Feature>() {{
                             Feature textDetection = new Feature();
                             textDetection.setType("TEXT_DETECTION");
-                            textDetection.setMaxResults(10);
+                            //textDetection.setMaxResults(10);
                             add(textDetection);
                         }});
 
                         // Add the list of one thing to the request
                         add(annotateImageRequest);
-                    }});
+                        }
+                    });
 
                     Vision.Images.Annotate annotateRequest =
                             vision.images().annotate(batchAnnotateImagesRequest);
+
                     // Due to a bug: requests to Vision API containing large images fail when GZipped.
                     annotateRequest.setDisableGZipContent(true);
                     Log.d(TAG, "created Cloud Vision request object, sending request");
@@ -251,6 +267,7 @@ public class MainActivity extends AppCompatActivity {
         }.execute();
     }
 
+    /*
     private Bitmap rotateImage(Bitmap bitmap, int angle)
     {
         Matrix matrix = new Matrix();
@@ -261,6 +278,7 @@ public class MainActivity extends AppCompatActivity {
 
         return rotatedBitmap;
     }
+    */
 
     private Collection<String> convertResponseToString(BatchAnnotateImagesResponse response) {
 
@@ -286,8 +304,10 @@ public class MainActivity extends AppCompatActivity {
     private Bitmap decodeBitmapUri(Context ctx, Uri uri) throws FileNotFoundException {
         int targetW = 800;
         int targetH = 800;
+
         BitmapFactory.Options bmOptions = new BitmapFactory.Options();
         bmOptions.inJustDecodeBounds = true;
+
         BitmapFactory.decodeStream(ctx.getContentResolver().openInputStream(uri), null, bmOptions);
         int photoW = bmOptions.outWidth;
         int photoH = bmOptions.outHeight;
@@ -300,11 +320,13 @@ public class MainActivity extends AppCompatActivity {
                 .openInputStream(uri), null, bmOptions);
     }
 
-    public int matchCount(String pat,Collection<String> text)
+    public int matchCount(String pattern,Collection<String> text)
     {
-        String[] pat_words = pat.split(" ");
+        String[] pat_words = pattern.split(" ");
         int count = 0;
         int itr=0;
+
+        //for individual words of pattern
         if(pat_words.length>1)
         for(int i=0;i<pat_words.length;i++)
         {
@@ -317,11 +339,13 @@ public class MainActivity extends AppCompatActivity {
             Log.i(TAG, String.valueOf(matchedResult.size()));
         }
 
-        List<ExtractedResult> matchedResult = FuzzySearch.extractAll(pat, text, 80);
+        //for whole pattern
+        List<ExtractedResult> matchedResult = FuzzySearch.extractAll(pattern, text, 80);
         Log.i(TAG, String.valueOf(matchedResult.size()));
         count += matchedResult.size();
         itr++;
 
+        //taking average
         count = count/itr;
         return count;
     }

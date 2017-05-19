@@ -4,12 +4,12 @@ package imageproduct.fieldassist.com.productimage;
  * Created by ritik on 5/15/2017.
  */
 
-    import android.app.Activity;
-    import android.content.pm.PackageManager;
-    import android.support.v4.app.ActivityCompat;
-    import android.support.v4.content.ContextCompat;
+import android.app.Activity;
+import android.content.pm.PackageManager;
+import android.support.v4.app.ActivityCompat;
+import android.support.v4.content.ContextCompat;
 
-    import java.util.ArrayList;
+import java.util.ArrayList;
 
 public class PermissionUtils {
     public static boolean requestPermission(
@@ -34,18 +34,5 @@ public class PermissionUtils {
                     requestCode);
             return false;
         }
-    }
-
-
-    public static boolean permissionGranted(
-            int requestCode, int permissionCode, int[] grantResults) {
-        if (requestCode == permissionCode) {
-            if (grantResults.length > 0 && grantResults[0] == PackageManager.PERMISSION_GRANTED) {
-                return true;
-            } else {
-                return false;
-            }
-        }
-        return false;
     }
 }

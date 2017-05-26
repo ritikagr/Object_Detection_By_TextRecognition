@@ -20,7 +20,7 @@
         android:id="@+id/choose_image"
         android:gravity="center"
         android:layout_gravity="center_horizontal"
-        android:onClick="ChooseImage"/>
+        android:onClick="ChooseImage" />
 
     <ImageView
         android:layout_marginTop="16dp"
@@ -33,24 +33,26 @@
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:text="@string/object_to_recognize_title"
+        android:textStyle="bold"
         android:id="@+id/object_title"
-        android:layout_marginTop="8dp"
+        android:layout_marginTop="16dp"
+        android:padding="5dp"
         android:visibility="gone"
         android:textAppearance="?android:attr/textAppearanceMedium"/>
 
     <EditText
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:lines="1"
         android:id="@+id/object_name"
         android:visibility="gone"
+        android:enabled="true"
         android:textAppearance="?android:attr/textAppearanceMedium"
         android:hint="@string/enter_object_name"/>
 
     <Button
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
-        android:layout_marginTop="8dp"
+        android:layout_marginTop="16dp"
         android:text="Analyze"
         android:visibility="gone"
         android:id="@+id/analyze_image"
@@ -61,11 +63,12 @@
     <TextView
         android:layout_width="match_parent"
         android:layout_height="match_parent"
-        android:id="@+id/detected_text"
+        android:id="@+id/processing"
         android:textAppearance="?android:attr/textAppearanceMedium"
-        android:layout_marginTop="8dp"/>
+        android:layout_marginTop="8dp"
+        android:textColor="@android:color/holo_blue_bright"/>
 
-    <TextView
+    <!--<TextView
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:id="@+id/object_count_title"
@@ -78,7 +81,32 @@
         android:layout_height="wrap_content"
         android:id="@+id/object_count"
         android:textAppearance="?android:attr/textAppearanceMedium"
-        android:layout_marginTop="8dp" />
+        android:layout_marginTop="8dp" />-->
+
+    <TableLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:id="@+id/objectCountTable"
+        android:stretchColumns="1"
+        android:layout_marginTop="16dp"
+        android:visibility="gone">
+
+        <TableRow
+            android:background="@android:color/holo_blue_bright">
+            <TextView
+                android:text="Object Name"
+                android:padding="5dp"
+                android:textStyle="bold"
+                android:textAppearance="?android:attr/textAppearanceMedium"/>
+
+            <TextView
+                android:text="Object Count"
+                android:gravity="right"
+                android:padding="5dp"
+                android:textStyle="bold"
+                android:textAppearance="?android:attr/textAppearanceMedium"/>
+        </TableRow>
+    </TableLayout>
 
 </LinearLayout>
 </ScrollView>
